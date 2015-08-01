@@ -1,0 +1,903 @@
+//import org.openhab.core.library.types.*
+//import org.openhab.core.persistence.*
+//import org.openhab.model.script.actions.*
+//import org.openhab.model.script.actions.Timer
+//import java.lang.Math
+//import java.lang.Integer
+//import java.util.*
+//import org.eclipse.xtext.xbase.lib.*
+//import org.openhab.core.items.*
+//import org.joda.time.DateTime
+//import org.joda.time.* 
+//import org.joda.time.format.* 
+//import java.util.LinkedHashMap
+//import java.util.ArrayList
+//import java.util.Map 
+//import java.util.concurrent.locks.Lock
+//import java.util.concurrent.locks.ReentrantLock
+
+import org.joda.time.*
+import org.openhab.core.library.types.*
+//import org.openhab.core.library.types.PercentType
+import org.openhab.core.library.items.SwitchItem
+import org.openhab.model.script.actions.*
+import org.openhab.model.script.actions.Timer
+import java.util.HashMap
+import java.util.LinkedHashMap
+import java.util.ArrayList
+import java.util.Map
+import java.util.concurrent.locks.Lock
+import java.util.concurrent.locks.ReentrantLock
+import java.lang.Math
+import java.lang.Integer
+import java.lang.Double
+
+
+var int ms_main = 0
+var int nomsg_flag=1
+var String[] buffer
+var String[] linebuffer
+var int RadioID
+var int SensorID
+var int SUBID
+var int transmissions_old = 0
+var int transmissions_new = 0  
+var int transmissions_missed = 0  
+var int testint
+var String teststr = "nodata"
+var String testnew = "NA"
+var int hexint = 103
+
+
+var String ArduinoUpdate = ""
+var String sketchName = ""
+
+
+var HashMap<String, LinkedHashMap<String, String>> presentationSubTypeToValue = newLinkedHashMap(
+        "S_DOOR" -> (newLinkedHashMap("value" -> "0", "comment" -> "Door and window sensors ", "itemType" -> "String")),
+        "S_MOTION" -> (newLinkedHashMap("value" -> "1", "comment" -> "Motion sensors ", "itemType" -> "String")),
+        "S_SMOKE" -> (newLinkedHashMap("value" -> "2", "comment" -> "Smoke sensor ", "itemType" -> "String")),
+        "S_LIGHT" -> (newLinkedHashMap("value" -> "3", "comment" -> "Light Actuator (on/off) ", "itemType" -> "String")),
+        "S_DIMMER" -> (newLinkedHashMap("value" -> "4", "comment" -> "Dimmable device of some kind ", "itemType" -> "String")),
+        "S_COVER" -> (newLinkedHashMap("value" -> "5", "comment" -> "Window covers or shades ", "itemType" -> "String")),
+        "S_TEMP" -> (newLinkedHashMap("value" -> "6", "comment" -> "Temperature sensor ", "itemType" -> "String")),
+        "S_HUM" -> (newLinkedHashMap("value" -> "7", "comment" -> "Humidity sensor ", "itemType" -> "String")),
+        "S_BARO" -> (newLinkedHashMap("value" -> "8", "comment" -> "Barometer sensor (Pressure) ", "itemType" -> "String")),
+        "S_WIND" -> (newLinkedHashMap("value" -> "9", "comment" -> "Wind sensor ", "itemType" -> "String")),
+        "S_RAIN" -> (newLinkedHashMap("value" -> "10", "comment" -> "Rain sensor ", "itemType" -> "String")),
+        "S_UV" -> (newLinkedHashMap("value" -> "11", "comment" -> "UV sensor ", "itemType" -> "String")),
+        "S_WEIGHT" -> (newLinkedHashMap("value" -> "12", "comment" -> "Weight sensor for scales etc. ", "itemType" -> "String")),
+        "S_POWER" -> (newLinkedHashMap("value" -> "13", "comment" -> "Power measuring device, like power meters ", "itemType" -> "String")),
+        "S_HEATER" -> (newLinkedHashMap("value" -> "14", "comment" -> "Heater device ", "itemType" -> "String")),
+        "S_DISTANCE" -> (newLinkedHashMap("value" -> "15", "comment" -> "Distance sensor ", "itemType" -> "String")),
+        "S_LIGHT_LEVEL" -> (newLinkedHashMap("value" -> "16", "comment" -> "Light sensor ", "itemType" -> "String")),
+        "S_ARDUINO_NODE" -> (newLinkedHashMap("value" -> "17", "comment" -> "Arduino node device ", "itemType" -> "String")),
+        "S_ARDUINO_RELAY" -> (newLinkedHashMap("value" -> "18", "comment" -> "Arduino repeating node device ", "itemType" -> "String")),
+        "S_LOCK" -> (newLinkedHashMap("value" -> "19", "comment" -> "Lock device ", "itemType" -> "String")),
+        "S_IR" -> (newLinkedHashMap("value" -> "20", "comment" -> "Ir sender/receiver device ", "itemType" -> "String")),
+        "S_WATER" -> (newLinkedHashMap("value" -> "21", "comment" -> "Water meter ", "itemType" -> "String")),
+        "S_AIR_QUALITY" -> (newLinkedHashMap("value" -> "22", "comment" -> "Air quality sensor e.g. MQ-2 ", "itemType" -> "String")),
+        "S_CUSTOM" -> (newLinkedHashMap("value" -> "23", "comment" -> "Use this for custom sensors where no other fits. ", "itemType" -> "String")),
+        "S_DUST" -> (newLinkedHashMap("value" -> "24", "comment" -> "Dust level sensor ", "itemType" -> "String")),
+        "S_SCENE_CONTROLLER" -> (newLinkedHashMap("value" -> "25", "comment" -> "Scene controller device ", "itemType" -> "String"))
+)
+
+var HashMap<Integer, LinkedHashMap<String, String>> presentationValueToSubType = newLinkedHashMap(
+        0 -> (newLinkedHashMap("type" -> "S_DOOR", "comment" -> "Door and window sensors ", "itemType" -> "String")),
+        1 -> (newLinkedHashMap("type" -> "S_MOTION", "comment" -> "Motion sensors ", "itemType" -> "String")),
+        2 -> (newLinkedHashMap("type" -> "S_SMOKE", "comment" -> "Smoke sensor ", "itemType" -> "String")),
+        3 -> (newLinkedHashMap("type" -> "S_LIGHT", "comment" -> "Light Actuator (on/off) ", "itemType" -> "String")),
+        4 -> (newLinkedHashMap("type" -> "S_DIMMER", "comment" -> "Dimmable device of some kind ", "itemType" -> "String")),
+        5 -> (newLinkedHashMap("type" -> "S_COVER", "comment" -> "Window covers or shades ", "itemType" -> "String")),
+        6 -> (newLinkedHashMap("type" -> "S_TEMP", "comment" -> "Temperature sensor ", "itemType" -> "String")),
+        7 -> (newLinkedHashMap("type" -> "S_HUM", "comment" -> "Humidity sensor ", "itemType" -> "String")),
+        8 -> (newLinkedHashMap("type" -> "S_BARO", "comment" -> "Barometer sensor (Pressure) ", "itemType" -> "String")),
+        9 -> (newLinkedHashMap("type" -> "S_WIND", "comment" -> "Wind sensor ", "itemType" -> "String")),
+        10 -> (newLinkedHashMap("type" -> "S_RAIN", "comment" -> "Rain sensor ", "itemType" -> "String")),
+        11 -> (newLinkedHashMap("type" -> "S_UV", "comment" -> "UV sensor ", "itemType" -> "String")),
+        12 -> (newLinkedHashMap("type" -> "S_WEIGHT", "comment" -> "Weight sensor for scales etc. ", "itemType" -> "String")),
+        13 -> (newLinkedHashMap("type" -> "S_POWER", "comment" -> "Power measuring device, like power meters ", "itemType" -> "String")),
+        14 -> (newLinkedHashMap("type" -> "S_HEATER", "comment" -> "Heater device ", "itemType" -> "String")),
+        15 -> (newLinkedHashMap("type" -> "S_DISTANCE", "comment" -> "Distance sensor ", "itemType" -> "String")),
+        16 -> (newLinkedHashMap("type" -> "S_LIGHT_LEVEL", "comment" -> "Light sensor ", "itemType" -> "String")),
+        17 -> (newLinkedHashMap("type" -> "S_ARDUINO_NODE", "comment" -> "Arduino node device ", "itemType" -> "String")),
+        18 -> (newLinkedHashMap("type" -> "S_ARDUINO_RELAY", "comment" -> "Arduino repeating node device ", "itemType" -> "String")),
+        19 -> (newLinkedHashMap("type" -> "S_LOCK", "comment" -> "Lock device ", "itemType" -> "String")),
+        20 -> (newLinkedHashMap("type" -> "S_IR", "comment" -> "Ir sender/receiver device ", "itemType" -> "String")),
+        21 -> (newLinkedHashMap("type" -> "S_WATER", "comment" -> "Water meter ", "itemType" -> "String")),
+        22 -> (newLinkedHashMap("type" -> "S_AIR_QUALITY", "comment" -> "Air quality sensor e.g. MQ-2 ", "itemType" -> "String")),
+        23 -> (newLinkedHashMap("type" -> "S_CUSTOM", "comment" -> "Use this for custom sensors where no other fits. ", "itemType" -> "String")),
+        24 -> (newLinkedHashMap("type" -> "S_DUST", "comment" -> "Dust level sensor ", "itemType" -> "String")),
+        25 -> (newLinkedHashMap("type" -> "S_SCENE_CONTROLLER", "comment" -> "Scene controller device ", "itemType" -> "String"))
+)
+
+var int V_TEMP = 0
+var int V_HUM = 1
+var int V_LIGHT = 2
+var int V_DIMMER = 3
+var int V_PRESSURE = 4
+var int V_FORECAST = 5
+var int V_RAIN = 6
+var int V_RAINRATE = 7
+var int V_WIND = 8
+var int V_GUST = 9
+var int V_DIRECTION = 10
+var int V_UV = 11
+var int V_WEIGHT = 12
+var int V_DISTANCE = 13
+var int V_IMPEDANCE = 14
+var int V_ARMED = 15
+var int V_TRIPPED = 16
+var int V_WATT = 17
+var int V_KWH = 18
+var int V_SCENE_ON = 19
+var int V_SCENE_OFF = 20
+var int V_HEATER = 21
+var int V_HEATER_SW = 22
+var int V_LIGHT_LEVEL = 23
+var int V_VAR1 = 24
+var int V_VAR2 = 25
+var int V_VAR3 = 26
+var int V_VAR4 = 27
+var int V_VAR5 = 28
+var int V_UP = 29
+var int V_DOWN = 30
+var int V_STOP = 31
+var int V_IR_SEND = 32
+var int V_IR_RECEIVE = 33
+var int V_FLOW = 34
+var int V_VOLUME = 35
+var int V_LOCK_STATUS = 36
+var int V_DUST_LEVEL = 37
+var int V_VOLTAGE = 38
+var int V_CURRENT = 39
+
+
+// Internal Commands
+var int I_BATTERY_LEVEL = 0
+var int I_TIME = 1
+var int I_VERSION = 2
+var int I_ID_REQUEST = 3
+var int I_ID_RESPONSE = 4
+var int I_INCLUSION_MODE = 5
+var int I_CONFIG = 6
+var int I_FIND_PARENT = 7
+var int I_FIND_PARENT_RESPONSE = 8
+var int I_LOG_MESSAGE = 9
+var int I_CHILDREN = 10
+var int I_SKETCH_NAME = 11
+var int I_SKETCH_VERSION = 12
+var int I_REBOOT = 13
+var int I_GATEWAY_READY = 14
+
+
+// Mappingsv 
+var HashMap<String, String> sensorToItemsMap = newLinkedHashMap(
+    "220;0;"	-> "dhtHUM",
+    "dhtHUM"	-> "220;0;",
+    "220;1;"	-> "dhtTEMP",
+    "dhtTEMP"	-> "220;1;",
+    "220;2;"	-> "light01",
+    "light01"	-> "220;2;",
+	"220;3;"	-> "rgbLED",
+    "rgbLED"	-> "220;3;",
+	"220;4;"	-> "bmpTEMP",
+    "bmpTEMP"	-> "220;4;",
+	"220;5;"	-> "bmpBARO",
+    "bmpBARO"	-> "220;5;"
+	"212;3;"	-> "irRECV",
+    "irRECV"	-> "212;3;"
+	"212;5;"	-> "unoPIR",
+    "unoPIR"	-> "212;5;"
+)
+
+
+//receiving msg from mysensors gateway  
+rule "Arduino sends to Openhab"
+    when
+        Item Arduino received update
+    then
+        var String lineBuffer3 =  Arduino.state.toString.split("\n")
+        for (String line3 : lineBuffer3) {
+            var String[] message = line3.split(";")
+            var String fieldstr =  line3.split(";")
+            var Integer cntfields = new Integer(0)
+            	for (String fieldcnt : fieldstr) {
+            		cntfields = cntfields+1
+            	}
+            //println("NUMBER OF FIELDS")
+            //println(cntfields)
+            //println("")
+            var String msg=""
+            //nomsg_flag=1
+            var Integer nodeId = new Integer(message.get(0))
+            var Integer childId = new Integer(message.get(1))
+            var Integer msgType = new Integer(message.get(2))
+            var Integer ack = new Integer(message.get(3))
+            var Integer subType = new Integer(message.get(4))
+
+            if(msgType==1 ||  ( msgType==3  && subType!=I_TIME)){
+            	msg = message.get(5)
+            	//println("testnnnnbb"+ msg + "tttttt")
+            	nomsg_flag=0
+            	}
+            if(msgType==3  && subType==I_TIME && msg=="NA") {
+            	nomsg_flag=1
+            }
+            
+            
+            if(msgType == 1){
+                if (subType == V_VAR3 ){
+                    postUpdate(sensorToItemsMap.get( nodeId + ";" + childId + ";"), msg)
+                    println (" IR RX item: " + sensorToItemsMap.get( nodeId + ";" + childId + ";") + " IR RX: " + msg )
+                }	
+                if (subType == V_TEMP ){
+                    postUpdate(sensorToItemsMap.get( nodeId + ";" + childId + ";"), msg)
+                    println ("DHT Temp item: " + sensorToItemsMap.get( nodeId + ";" + childId + ";") + " temp: " + msg )
+                }
+                if (subType == V_HUM){
+                    postUpdate(sensorToItemsMap.get( nodeId + ";" + childId + ";"), msg)
+                    println ("DHT Hum item: " + sensorToItemsMap.get( nodeId + ";" + childId + ";") + " hum: " + msg )
+                }
+				if (subType == V_PRESSURE){
+                    postUpdate(sensorToItemsMap.get( nodeId + ";" + childId + ";"), msg)
+                    println ("BMP Pressure item: " + sensorToItemsMap.get( nodeId + ";" + childId + ";") + " hum: " + msg )
+                }
+				if (subType == V_LIGHT_LEVEL){
+                    postUpdate(sensorToItemsMap.get( nodeId + ";" + childId + ";"), msg)
+                    println ("Light item: " + sensorToItemsMap.get( nodeId + ";" + childId + ";") + " light: " + msg )
+                }
+				if (subType == V_VOLTAGE){
+                    postUpdate(sensorToItemsMap.get( nodeId + ";" + childId + ";"), msg)
+                    println ("Voltage item: " + sensorToItemsMap.get( nodeId + ";" + childId + ";") + " voltage: " + msg )
+                }
+				if (subType == V_LOCK_STATUS){
+                    var String lockstatus="OPEN"
+                    if (msg=="1"){
+                        lockstatus="CLOSED"
+                    }
+                    postUpdate(sensorToItemsMap.get( nodeId + ";" + childId + ";"), lockstatus)
+                    println ("Door/Window item: " + sensorToItemsMap.get( nodeId + ";" + childId + ";") + " Status: " + lockstatus )
+                }
+				if (subType == V_TRIPPED){
+                    var String tripped="OFF"
+                    if (msg=="1"){
+                        tripped="ON"
+                    }
+                    postUpdate(sensorToItemsMap.get( nodeId + ";" + childId + ";"), tripped)
+                    println ("Button/Contact item: " + sensorToItemsMap.get( nodeId + ";" + childId + ";") + " Status: " + tripped )
+                }
+				if (subType == V_LIGHT){
+                    var String light="OFF"
+                    if (msg=="1"){
+                        light="ON"
+                    }
+                    postUpdate(sensorToItemsMap.get( nodeId + ";" + childId + ";"), light)
+                    println ("Light item: " + sensorToItemsMap.get( nodeId + ";" + childId + ";") + " Light: " + light )
+                }
+                //else println("NO VALUE TYPE")
+			}
+            //Internal Command
+            if(msgType == 3){
+			    if(subType == I_BATTERY_LEVEL){
+                        println("Battery: " + msg )
+                        //sketchName=msg
+                }
+                if(subType == I_SKETCH_NAME){
+                        println("Sketch name: " + msg )
+                        sketchName=msg
+                }
+                if(subType == I_SKETCH_VERSION){
+                        println("Sketch version: " + msg )
+                        postUpdate(sensorToItemsMap.get( nodeId + ";" + childId + ";"), sketchName+" " +msg )
+                        sketchName=""
+                }
+                if(subType == I_TIME){
+                		var long testlong = 1438233491
+                		var Integer timereq = now().getMillis()/1000 -14400
+                		//var String timereqstr = timereq.toString.trim
+                        if(cntfields==5){
+                        	nomsg_flag=0
+                        	println("Time reqest: " + timereq )
+                        	sendCommand(Arduino, nodeId +";255;3;0;1;" + timereq +"\n")
+                        	
+                        	//postUpdate(datelong, timereq.state.toString.trim)
+                        }
+                        else if (nomsg_flag==0){
+                        	nomsg_flag=1
+                        }
+      
+                }
+            }
+        }   
+ 
+end
+
+
+
+
+
+rule "Initialize Location G"
+	when 
+		System started or
+		Time cron "0 0 0 * * ?"
+	then
+		VTLocation.postUpdate(new PointType("43.528503,-72.429741"))
+	  //DemoLocation.postUpdate(new PointType("52.5200066,13.4049540")) 
+end
+
+rule "Initialize contact states"
+	when 
+		System started
+	then
+		Etek?.members.forEach(etek|
+			etek.postUpdate(OFF)
+		)	
+end
+
+rule "Initialize MEGA SENSORS"
+	when
+		System started
+		//Time cron "0 * * * * ?"
+	then
+		println("Initialize MS BMP TEMP  Sensors ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ")
+		//MS_BMP_TEMP.postUpdate("nodata")
+		//Node_Mega?.members.forEach(sensor|
+		//	sensor.postUpdate(teststr)
+		//)
+end
+
+rule "Initialize NANO SENSORS"
+	when
+		System started
+	then
+		Node_Nano?.members.forEach(sensor|
+			sensor.postUpdate(teststr)
+		)
+end
+
+rule "Initialize MESSAGES"
+	when
+		System started
+	then
+		Messages?.members.forEach(message|
+			message.postUpdate(testnew)
+		)
+end
+
+
+
+
+rule "Update max and min temperatures"
+when
+	Item Weather_Temperature changed or
+	Time cron "0 0 0 * * ?" or
+	System started
+then	
+	postUpdate(Weather_Temp_Max, Weather_Temperature.maximumSince(now.toDateMidnight).state)
+	postUpdate(Weather_Temp_Min, Weather_Temperature.minimumSince(now.toDateMidnight).state)
+	logInfo("Weather", "Temperature evolved of " + Weather_Temperature.deltaSince(now.minusMinutes(2)) + " degrees.")
+end
+
+
+/** shows how to use sensor values from the past */
+rule "Persistence Demo"
+when
+	Time cron "0 * * * * ?"
+then	
+	if(Weather_Temperature.changedSince(now.minusMinutes(1))) {
+		logInfo("PersistenceDemo", "2 minutes ago, the temperature was " + Weather_Temperature.historicState(now.minusMinutes(2)) + " degrees.")
+	}
+end
+
+
+// Creates an item that stores the last update time of this item
+rule "Records last weather update time"
+when
+  Item Weather_Temperature received update
+then
+  postUpdate(Weather_LastUpdate, new DateTimeType())
+end
+
+// This rule will be used to test Scale transformation service
+rule "Compute humidex"
+when
+    Item Weather_Temperature changed or
+	Item Weather_Humidity changed
+then
+	var Number T = Weather_Temperature.state as DecimalType
+	var Number H = Weather_Humidity.state as DecimalType	
+	var Number x = 7.5 * T/(237.7 + T)
+	var Number e = 6.112 * Math::pow(10, x.doubleValue) * H/100
+	var Number humidex = T + (new Double(5) / new Double(9)) * (e - 10)
+	postUpdate(Weather_Humidex, humidex)
+end
+
+
+
+// kind:folder foldername:rpi*
+
+rule "Initialize CHART SENSOR DATA"
+	when
+		System started
+	then
+		var Double chartdouble = new Double(0)
+		//ChartSensorData?.members.forEach(data|
+			//data.postUpdate(chartdouble)
+		//)
+end
+
+rule "Arduino ARDUINO"  
+when   
+	   Item Arduino2 changed
+	   //Item Arduino received update  
+	   //Arduino.state!=null  
+then  	 
+	
+	if(Arduino.state!=null )
+	{
+	  //println("zzzzzzzzz")
+	  linebuffer = Arduino.state.toString.split("\n") 
+	  for (String element : linebuffer) {
+	  	
+			buffer = element.split(";")
+			var Integer nodeId = new Integer(buffer.get(0))
+			var Integer childId = new Integer(buffer.get(1))
+			var Integer msgType = new Integer(buffer.get(2))
+			var Integer ack = new Integer(buffer.get(3))
+			var Integer subType = new Integer(buffer.get(4))
+			var String msg = buffer.get(5)
+
+			switch (nodeId) {
+				case 205: {
+					SensorID = new Integer(buffer.get(1))
+					switch (childId) {
+						
+						case 0 : postUpdate (MegaSensorsT0, buffer.get(5))
+						case 1 : postUpdate (MegaSensorsT1, buffer.get(5))
+						case 2 : postUpdate (MegaSensorsT2, buffer.get(5))
+						case 3 : postUpdate (MegaSensorsT3, buffer.get(5))
+						case 4 : postUpdate (MegaSensorsT4, buffer.get(5))
+						case 5 : postUpdate (MegaSensorsT5, buffer.get(5))
+						case 6 : postUpdate (MegaSensorsT6, buffer.get(5))
+						case 7 : postUpdate (MegaSensorsT7, buffer.get(5))
+						case 8 : postUpdate (MegaSensorsT8, buffer.get(5))
+						case 9 : postUpdate (MegaSensorsT9, buffer.get(5))
+						case 10 :postUpdate (MegaSensorsT10, buffer.get(5))
+						case 11 :postUpdate (MegaSensorsT11, buffer.get(5))
+						default: println("bad 205 sensor")
+						} /*switch (childId)  */
+				} // case 205
+				case 209: {
+					SensorID = new Integer(buffer.get(1))
+					switch (childId) {
+						case 4 : postUpdate  (UnoSensorsT0, buffer.get(5))
+						case 19 : postUpdate (UnoSensorsT1, buffer.get(5))
+						case 20 : postUpdate (UnoSensorsT2, buffer.get(5))
+						case 8 : postUpdate  (UnoSensorsT3, buffer.get(5))
+						case 9 : {
+							switch (subType) {
+								case 4 : postUpdate (UnoSensorsT4, buffer.get(5))
+								case 5 : postUpdate (UnoSensorsT5, buffer.get(5))
+								default: println("bad 209 subid")
+							}
+						} 
+						default: println("bad 209 sensor")
+						} /*switch (childId) */
+						
+				} // case 209		
+				case 202: {
+					switch (childId) {
+						case 4 : postUpdate (NanoSensorsT0, buffer.get(5))
+						case 8 : postUpdate (NanoSensorsT1, buffer.get(5))
+						case 9 : {
+							switch (subType) {
+								case 4 : postUpdate (NanoSensorsT2, buffer.get(5))
+								case 5 : postUpdate (NanoSensorsT3, buffer.get(5))
+								default: println("bad 202 subid")
+							}
+						} // case 9
+						default: println("bad 202 sensor")
+					} /*switch (SensorID) */
+				} // case 202
+				default: println("bad node")
+			}
+	  }
+	 }
+end
+
+rule "sensor main time update"
+when
+	Time cron  "0 * * * * ?"  //everyminute
+then
+	ms_main = ms_main + 1
+	postUpdate(MS_MAIN_TEST2, ms_main)
+	
+end
+		
+rule "BMP TEMP"
+when
+	Item MS_MAIN_TEST2 changed
+then
+	println("GMP XXXXXXXXXXXX")
+	postUpdate(MS_BMP_TEMP, MS_MAIN_TEST2.state.toString.trim)
+
+end
+
+
+
+//********************************************************************************
+//Fourth part: some actions triggerd from 
+//OpenHAB GUI/Webinterface: rule ArdSwon
+//********************************************************************************
+rule NanoSwon
+when 
+    Item NanoSwitch changed from OFF to ON
+then
+    sendCommand(Arduino, "202;11;1;0;3;100\n")
+end
+
+rule NanoSwoff
+when 
+    Item NanoSwitch changed from ON to OFF
+then
+    sendCommand(Arduino, "202;11;1;0;3;0\n")			
+end
+
+
+rule MegaSwon
+when 
+    Item MegaSwitch changed from OFF to ON
+then
+    sendCommand(Arduino, "205;18;1;0;2;1\n")
+end
+
+rule MegaSwoff
+when 
+    Item MegaSwitch changed from ON to OFF
+then
+    sendCommand(Arduino, "205;18;1;0;2;0\n")			
+end
+
+rule UnoSwon
+when 
+    Item UnoSwitch changed from OFF to ON
+then
+    sendCommand(Arduino, "209;18;1;0;2;1\n")
+end
+
+rule UnoSwoff
+when 
+    Item UnoSwitch changed from ON to OFF
+then
+    sendCommand(Arduino, "209;18;1;0;2;0\n")			
+end
+
+
+
+
+rule "Nano Dimmed Light"
+	when
+		Item NanoDimmer received command
+	then
+		var Number percent = 0
+		if(NanoDimmer.state instanceof DecimalType) percent = NanoDimmer.state as DecimalType 
+			
+		if(receivedCommand==INCREASE) percent = percent + 5
+		if(receivedCommand==DECREASE) percent = percent - 5
+
+		if(percent<0)   percent = 0
+		if(percent>100) percent = 100
+		postUpdate(NanoDimmer, percent);
+		sendCommand(Arduino, "202;11;1;0;3;" + percent + "\n")
+end
+
+
+rule "Mega Dimmed Light"
+	when
+		Item MegaDimmer received command
+	then
+		var Number percent = 0
+		if(MegaDimmer.state instanceof DecimalType) percent = MegaDimmer.state as DecimalType 
+			
+		if(receivedCommand==INCREASE) percent = percent + 5
+		if(receivedCommand==DECREASE) percent = percent - 5
+
+		if(percent<0)   percent = 0
+		if(percent>100) percent = 100
+		postUpdate(MegaDimmer, percent);
+		sendCommand(Arduino, "205;18;1;0;3;" + percent + "\n")
+end
+
+rule "Uno Dimmed Light"
+	when
+		Item UnoDimmer received command
+	then
+		var Number percent = 0
+		if(UnoDimmer.state instanceof DecimalType) percent = UnoDimmer.state as DecimalType 
+			
+		if(receivedCommand==INCREASE) percent = percent + 5
+		if(receivedCommand==DECREASE) percent = percent - 5
+
+		if(percent<0)   percent = 0
+		if(percent>100) percent = 100
+		postUpdate(UnoDimmer, percent);
+		sendCommand(Arduino, "209;18;1;0;3;" + percent + "\n")
+end
+
+
+
+
+//********************************************************************************
+//Sensor Chart
+//********************************************************************************
+rule "Sensor_Chart Nano Temp"
+when 
+    Item bmpTEMP received update  
+then
+	
+	var String NanoSensorsT1update = bmpTEMP.state.toString.trim
+	if(NanoSensorsT1update!="nodata") {
+		var Double nanoBMPtempF = new Double(NanoSensorsT1update)
+		postUpdate(Sensor_Temperature, nanoBMPtempF);
+	}
+	
+end
+
+rule "Sensor_Chart Nano Pressure Hg"
+when 
+    Item bmpBARO received update  
+then
+	
+	var String NanoSensorsT2update = bmpBARO.state.toString.trim
+	if(NanoSensorsT2update!="nodata"){
+		var Double nanoBMPbaroHg = new Double(NanoSensorsT2update)
+		postUpdate(Sensor_Pressure, nanoBMPbaroHg);
+	}
+	//if(nanoBMPtempF!=null) 
+end
+
+
+
+//********************************************************************************
+//ETEK SWITCHES FOR MEGA
+//********************************************************************************
+
+rule "Etek A switch for Mega"
+when 
+    Item V_LIGHT_205_12 changed
+then
+	var String[] itemName = V_LIGHT_205_12.getName().toString().split("_")
+	var Integer state = 0
+	if (V_LIGHT_205_12.state == ON) { state = 1 }
+		else { state = 0 }
+	sendCommand(Arduino, itemName.get(2)+";"+itemName.get(3)+";1;0;2;"+state+"\n")	
+	sendCommand(Arduino, "220;3;1;0;24;ef\n")
+end
+
+rule "Etek B switch for Mega"
+when 
+    Item V_LIGHT_205_13 changed
+then
+	var String[] itemName = V_LIGHT_205_13.getName().toString().split("_")
+	var Integer state = 0
+	if (V_LIGHT_205_13.state == ON) { state = 1 }
+		else { state = 0 }
+	sendCommand(Arduino, itemName.get(2)+";"+itemName.get(3)+";1;0;2;"+state+"\n")	
+end
+
+rule "Etek C switch for Mega"
+when 
+    Item V_LIGHT_205_14 changed
+then
+	var String[] itemName = V_LIGHT_205_14.getName().toString().split("_")
+	var Integer state = 0
+	if (V_LIGHT_205_14.state == ON) { state = 1 }
+		else { state = 0 }
+	sendCommand(Arduino, itemName.get(2)+";"+itemName.get(3)+";1;0;2;"+state+"\n")	
+end
+
+
+rule "Etek D switch for Mega"
+when 
+    Item V_LIGHT_205_15 changed
+then
+	var String[] itemName = V_LIGHT_205_15.getName().toString().split("_")
+	var Integer state = 0
+	if (V_LIGHT_205_15.state == ON) { state = 1 }
+		else { state = 0 }
+	sendCommand(Arduino, itemName.get(2)+";"+itemName.get(3)+";1;0;2;"+state+"\n")	
+end
+
+rule "Etek E switch for Mega"
+when 
+    Item V_LIGHT_205_16 changed
+then
+	var String[] itemName = V_LIGHT_205_16.getName().toString().split("_")
+	var Integer state = 0
+	if (V_LIGHT_205_16.state == ON) { state = 1 }
+		else { state = 0 }
+	sendCommand(Arduino, itemName.get(2)+";"+itemName.get(3)+";1;0;2;"+state+"\n")	
+end
+
+
+
+//********************************************************************************
+//ETEK SWITCHES FOR UNO
+//********************************************************************************
+
+rule "Etek A switch for Uno"
+when 
+    Item V_LIGHT_209_12 changed
+then
+	var String[] itemName = V_LIGHT_209_12.getName().toString().split("_")
+	var Integer state = 0
+	if (V_LIGHT_209_12.state == ON) { state = 1 }
+		else { state = 0 }
+	sendCommand(Arduino, itemName.get(2)+";"+itemName.get(3)+";1;0;2;"+state+"\n")	
+end
+
+rule "Etek B switch for Uno"
+when 
+    Item V_LIGHT_209_13 changed
+then
+	var String[] itemName = V_LIGHT_209_13.getName().toString().split("_")
+	var Integer state = 0
+	if (V_LIGHT_209_13.state == ON) { state = 1 }
+		else { state = 0 }
+	sendCommand(Arduino, itemName.get(2)+";"+itemName.get(3)+";1;0;2;"+state+"\n")	
+end
+
+rule "Etek C switch for Uno"
+when 
+    Item V_LIGHT_209_14 changed
+then
+	var String[] itemName = V_LIGHT_209_14.getName().toString().split("_")
+	var Integer state = 0
+	if (V_LIGHT_209_14.state == ON) { state = 1 }
+		else { state = 0 }
+	sendCommand(Arduino, itemName.get(2)+";"+itemName.get(3)+";1;0;2;"+state+"\n")	
+end
+
+
+rule "Etek D switch for Uno"
+when 
+    Item V_LIGHT_209_15 changed
+then
+	var String[] itemName = V_LIGHT_209_15.getName().toString().split("_")
+	var Integer state = 0
+	if (V_LIGHT_209_15.state == ON) { state = 1 }
+		else { state = 0 }
+	sendCommand(Arduino, itemName.get(2)+";"+itemName.get(3)+";1;0;2;"+state+"\n")	
+end
+
+rule "Etek E switch for Uno"
+when 
+    Item V_LIGHT_209_16 changed
+then
+	var String[] itemName = V_LIGHT_209_16.getName().toString().split("_")
+	var Integer state = 0
+	if (V_LIGHT_209_16.state == ON) { state = 1 }
+		else { state = 0 }
+	sendCommand(Arduino, itemName.get(2)+";"+itemName.get(3)+";1;0;2;"+state+"\n")	
+end
+
+rule "TV Code Volume Up"
+when 
+    Item V_IRSENDER_212_22 changed
+then
+	var String[] itemName = V_IRSENDER_212_22.getName().toString().split("_")
+	var long dpayload = 551502015
+	sendCommand(Arduino, itemName.get(2)+";"+itemName.get(3)+";1;0;32;"+dpayload+"\n")	
+	println("xxx TV Code Volume Up:    ")
+
+end
+
+
+rule "TV Code Volume Down"
+when 
+    Item V_IRSENDER2_212_22 changed
+then
+	var String[] itemName = V_IRSENDER2_212_22.getName().toString().split("_")
+	var long dpayload = 551534655
+	//sendCommand(Arduino, itemName.get(3)+";"+itemName.get(4)+";1;0;32;"+dpayload+"\n")	
+	print("TV Code Volume Down:    ")
+	//println(itemName.get(3)+";"+itemName.get(4)+";1;0;32;"+dpayload+"\n")
+	sendCommand(Arduino, "212;22;1;0;32;551534655\n")
+	println("212;22;1;0;32;551534655")
+end
+
+
+rule "TV Buttons"
+when 
+    Item TV_Command changed
+then
+	var Integer NODE_IR = 212
+	var Integer CID_IR = 22
+	var Number buttonval = TV_Command.state as DecimalType 
+	var Number dpayload = buttonval
+	sendCommand(Arduino, NODE_IR+";"+CID_IR+";1;0;32;"+dpayload+"\n")	
+	println("TV Button"+NODE_IR+"_"+CID_IR+"_"+buttonval)
+
+
+end
+
+
+rule "Converter HSB RGB LED"
+	when
+		Item RGB_LED received command
+	then
+		var HSBType hsbValue = RGB_LED.state as HSBType 
+		var Number bright = 0
+		bright = hsbValue.brightness as DecimalType
+			if(receivedCommand==INCREASE && bright<98 ) {
+				bright = bright + 1
+			}
+			else if(receivedCommand==DECREASE && bright>2) {
+
+				bright = bright - 1
+			}
+			else {
+				println("ELSE")
+			}
+
+			if(bright<1)   {
+			bright = 1.0
+			}
+			if(bright>99){
+			bright = 99
+			} 
+			
+		val b = bright
+		val h= (RGB_LED.state as HSBType).hue
+		val s= (RGB_LED.state as HSBType).saturation
+		
+		val red = (RGB_LED.state as HSBType).red
+		val green = (RGB_LED.state as HSBType).green
+		val blue = (RGB_LED.state as HSBType).blue
+		val red3 = new Double(2.54) * red
+		val green3 = new Double(2.54) * green
+		val blue3 = new Double(2.54) * blue
+
+
+		var  red1 = Math::round((red3.doubleValue))
+		var  green1 = Math::round((green3.doubleValue))
+		var  blue1 = Math::round((blue3.doubleValue))
+
+		var String redhex = red1.toHexString
+		var String greenhex = green1.toHexString
+		var String bluehex = blue1.toHexString
+		
+		
+			if(red1<10){
+			redhex = "0"+redhex
+			}
+			if(green1<10){
+			greenhex = "0"+greenhex
+			}
+			if(blue1<10){
+			bluehex = "0"+bluehex
+			}
+			
+		var String RGBhexstr = redhex + greenhex + bluehex
+		println("RGB "+red1+"-"+green1+"-"+blue1)
+
+		postUpdate(RGB_LED, h+","+s+","+bright}
+		sendCommand(Arduino, "220;3;1;0;24;"+RGBhexstr+"\n")
+		println("RGB COLOR: 220;3;1;0;24;")
+		println(RGBhexstr)
+		println("")
+		//sendCommand(Arduino, "220;3;1;0;24;7b4ef\n")	
+		
+end
+
+
+
+
+
+
+
+
+// ==================================================================================
+// END RULES
+// ==================================================================================
